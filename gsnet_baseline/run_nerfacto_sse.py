@@ -162,6 +162,7 @@ def job_nerfacto(sid, args, gpu):
         "--load-config", config,
         "--output-path", render_out,
         "--split", "test",
+        "--image-format", "png",          # lossless: keep GT byte-exact (no JPEG)
         "--rendered-output-names", "rgb", "gt-rgb",
     ], gpu=gpu)
 
