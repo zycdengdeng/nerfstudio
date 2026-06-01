@@ -12,6 +12,7 @@ split, and the same metric code**.
 | Test scenes | `110 210 310 410 510` (seq-10 of each of the 5 CARLA-NVS scenes) | identical |
 | Data | `<io_dir>/<id>_base/{images,sparse/0}` | identical |
 | Split | hold out frames `{4,9}` per block of 10 → **12 test / 48 train**, via `sparse/0/test.txt` | identical split, via nerfstudio `train_list.txt` / `val_list.txt` / `test_list.txt` |
+| Resolution | **1600×900** (3DGS auto-caps width at 1600) | **1600×900** — both pipelines read the *same* pre-resized dataset (see `prep_1600.py`) |
 | Iterations | 30000 | 30000 |
 | Metrics | `gsnet/metrics.py` — PSNR / SSIM / LPIPS(**vgg**) | **the same `gsnet/metrics.py`**, run on Nerfacto's rendered test views |
 | Timing | optim seconds logged | train + render seconds logged |
@@ -53,15 +54,31 @@ python -c "import torch; print(torch.__version__, torch.version.cuda, torch.cuda
 ns-train --help | head
 ```
 
+## Step 0 — build the canonical 1600×900 dataset (once)
+
+Both pipelines must read identical GT. We pre-resize the 5 test sequences to
+1600×900 (images + COLMAP intrinsics) so neither tool's internal resize is
+involved:
+
+```bash
+python -m gsnet_baseline.prep_1600 \
+    --io_dir   /mnt/zihanw/carla/input_output \
+    --out_root /mnt/zihanw/carla/input_output_1600
+```
+
+Then point **3DGS** at the same `--io_dir /mnt/zihanw/carla/input_output_1600`
+(width is already 1600, so 3DGS does no further resize).
+
 ## Run
 
-From the **nerfstudio repo root**, inside the `nerfacto` env:
+From the **nerfstudio repo root** (`/mnt/zihanw/nerfstudio`), inside the
+`nerfacto` env:
 
 ```bash
 python -m gsnet_baseline.run_nerfacto_sse \
-    --io_dir      /mnt/zihanw/carla/input_output \
-    --gsnet_repo  /ABS/PATH/TO/gsnet \
-    --gsnet_python /ABS/PATH/TO/conda/envs/gsnet/bin/python \
+    --io_dir      /mnt/zihanw/carla/input_output_1600 \
+    --gsnet_repo  /mnt/zihanw/gaussian-splatting \
+    --gsnet_python /home/wzh/miniconda3/envs/gaussian_splatting/bin/python \
     --out_dir     runs/nerfacto_sse \
     --gpus 4 5 6 7
 ```
@@ -87,8 +104,8 @@ can be dropped straight into the comparison.
 
 ## Notes / knobs
 
-* `--downscale_factor 1` keeps full-resolution images, matching how 3DGS handled
-  these (CARLA-NVS images are well under the 1600px auto-resize threshold).
+* `--downscale_factor 1` keeps the pre-resized 1600×900 images as-is. Always run
+  the driver against the `*_1600` dataset produced by `prep_1600.py`.
 * SSE split parameters (`--num_images 60 --block 10 --holdout 4 9 --ext .png`)
   mirror `gsnet/make_sse_split.py`; change them only if the 3DGS split changed.
 * `--method` defaults to `nerfacto`; `nerfacto-big` / `depth-nerfacto` etc. can
