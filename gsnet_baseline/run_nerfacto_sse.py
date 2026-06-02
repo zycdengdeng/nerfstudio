@@ -171,6 +171,9 @@ def job_nerfacto(sid, args, gpu):
         "--colmap-path", args.colmap_path,
         "--images-path", args.images_path,
         "--downscale-factor", str(args.downscale_factor),
+        # nerfacto does not use the SfM points; don't require points3D.bin/.txt
+        # (some sequences ship only points3D.ply, which nerfstudio can't read).
+        "--load-3D-points", "False",
     ], gpu=gpu)
 
     config = find_config(train_out)
