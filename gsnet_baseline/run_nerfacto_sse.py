@@ -64,7 +64,7 @@ def run(cmd, gpu=None, cwd=None):
 
 
 # ---------------------------------------------------------------------------
-# SSE split -> nerfstudio split-list files
+# train/test split -> nerfstudio split-list files
 # ---------------------------------------------------------------------------
 def sse_test_names(num_images=60, block=10, holdout=(4, 9), ext=".png"):
     """The 12 held-out test frames (identical rule to gsnet/make_sse_split.py)."""
@@ -73,17 +73,38 @@ def sse_test_names(num_images=60, block=10, holdout=(4, 9), ext=".png"):
             if (n - 1) % block in holdout0]
 
 
-def write_split_lists(seq_dir, num_images=60, block=10, holdout=(4, 9), ext=".png"):
+def write_split_lists(seq_dir, colmap_path="sparse/0", images_path="images",
+                      num_images=60, block=10, holdout=(4, 9), ext=".png"):
     """Write train_list.txt / val_list.txt / test_list.txt for the ColmapDataParser.
 
-    Filenames are bare (relative to images/), e.g. ``4.png``. val == test (the
-    held-out frames) so nerfstudio's during-training 'val' split and the final
-    'test' split both evaluate the exact 12 SSE test views.
+    The test split is taken **verbatim from ``<colmap_path>/test.txt``** when it
+    exists, so the split is byte-identical to the one 3DGS uses (true for both
+    the SSE ``<id>_base`` workspaces and the CSE scenes, which both ship a
+    ``test.txt``). Only if no test.txt is present do we fall back to the SSE
+    block rule. Train = every other image present in ``images/``.
+
+    Filenames are bare (relative to ``images/``); val == test so nerfstudio's
+    during-training 'val' split and the final 'test' split evaluate the same
+    held-out views.
     """
-    test_names = set(sse_test_names(num_images, block, holdout, ext))
-    all_names = [f"{n}{ext}" for n in range(1, num_images + 1)]
-    train_names = [n for n in all_names if n not in test_names]
-    test_sorted = [n for n in all_names if n in test_names]
+    img_dir = os.path.join(seq_dir, images_path)
+    all_names = sorted(f for f in os.listdir(img_dir) if f.endswith(ext))
+
+    test_txt = os.path.join(seq_dir, colmap_path, "test.txt")
+    if os.path.exists(test_txt):
+        with open(test_txt) as f:
+            test_names = [ln.strip() for ln in f if ln.strip()]
+        src = "test.txt"
+    else:
+        test_set = set(sse_test_names(num_images, block, holdout, ext))
+        test_names = [n for n in all_names if n in test_set]
+        src = "SSE block rule"
+
+    test_set = set(test_names)
+    missing = test_set.difference(all_names)
+    assert not missing, f"test.txt names not found in {img_dir}: {sorted(missing)}"
+    train_names = [n for n in all_names if n not in test_set]
+    test_sorted = [n for n in all_names if n in test_set]
 
     def _write(name, names):
         with open(os.path.join(seq_dir, name), "w") as f:
@@ -92,8 +113,8 @@ def write_split_lists(seq_dir, num_images=60, block=10, holdout=(4, 9), ext=".pn
     _write("train_list.txt", train_names)
     _write("val_list.txt", test_sorted)
     _write("test_list.txt", test_sorted)
-    print(f"[split] {seq_dir}: {len(train_names)} train / {len(test_sorted)} test "
-          f"-> test={test_sorted}")
+    print(f"[split:{src}] {seq_dir}: {len(train_names)} train / "
+          f"{len(test_sorted)} test")
 
 
 # ---------------------------------------------------------------------------
@@ -130,7 +151,7 @@ def read_results(model_path):
 
 
 def job_nerfacto(sid, args, gpu):
-    seq_dir = os.path.join(args.io_dir, f"{sid}_base")
+    seq_dir = os.path.join(args.io_dir, f"{sid}{args.seq_suffix}")
     model_path = os.path.join(args.out_dir, sid)
     train_out = os.path.join(model_path, "train")
     render_out = os.path.join(model_path, "render")
@@ -183,7 +204,7 @@ def job_nerfacto(sid, args, gpu):
 # ---------------------------------------------------------------------------
 # summary table (mirrors gsnet/run_sse.py)
 # ---------------------------------------------------------------------------
-def summarize(records, out_dir, method_label):
+def summarize(records, out_dir, method_label, tag="sse"):
     def avg(key):
         vals = [r[method_label][key] for r in records if method_label in r]
         return sum(vals) / len(vals) if vals else float("nan")
@@ -194,7 +215,7 @@ def summarize(records, out_dir, method_label):
             k: avg(k) for k in ("PSNR", "SSIM", "LPIPS",
                                 "train_seconds", "render_seconds", "total_seconds")}
     os.makedirs(out_dir, exist_ok=True)
-    with open(os.path.join(out_dir, "nerfacto_sse_results.json"), "w") as f:
+    with open(os.path.join(out_dir, f"nerfacto_{tag}_results.json"), "w") as f:
         json.dump(summary, f, indent=2)
 
     lines = ["", "| Seq | Method | PSNR | SSIM | LPIPS | Train(min) | Render(min) | Total(min) |",
@@ -213,7 +234,7 @@ def summarize(records, out_dir, method_label):
             f"**{a['LPIPS']:.3f}** | {a['train_seconds']/60:.1f} | "
             f"{a['render_seconds']/60:.1f} | {a['total_seconds']/60:.1f} |")
     table = "\n".join(lines)
-    with open(os.path.join(out_dir, "nerfacto_sse_results.md"), "w") as f:
+    with open(os.path.join(out_dir, f"nerfacto_{tag}_results.md"), "w") as f:
         f.write(table + "\n")
     return table
 
@@ -235,7 +256,12 @@ def main():
     ap.add_argument("--colmap_path", default="sparse/0")
     ap.add_argument("--images_path", default="images")
     ap.add_argument("--downscale_factor", type=int, default=1)
-    # SSE split parameters (must match gsnet/make_sse_split.py)
+    # seq dir = <io_dir>/<id><seq_suffix> (SSE: "_base"; CSE scenes: "")
+    ap.add_argument("--seq_suffix", default="_base")
+    # tag for the aggregated result files: nerfacto_<tag>_results.{json,md}
+    ap.add_argument("--tag", default="sse")
+    # split fallback parameters (only used when no sparse/0/test.txt exists;
+    # test.txt — present for both SSE and CSE — always takes precedence)
     ap.add_argument("--num_images", type=int, default=60)
     ap.add_argument("--block", type=int, default=10)
     ap.add_argument("--holdout", type=int, nargs="+", default=[4, 9])
@@ -244,14 +270,15 @@ def main():
 
     # Validate inputs and write split-list files up front.
     for sid in args.test_ids:
-        seq_dir = os.path.join(args.io_dir, f"{sid}_base")
+        seq_dir = os.path.join(args.io_dir, f"{sid}{args.seq_suffix}")
         assert os.path.isdir(seq_dir), f"missing test seq dir {seq_dir}"
-        write_split_lists(seq_dir, args.num_images, args.block,
+        write_split_lists(seq_dir, args.colmap_path, args.images_path,
+                          args.num_images, args.block,
                           tuple(args.holdout), args.ext)
 
     # Resume/merge previous results.
     records = {}
-    results_path = os.path.join(args.out_dir, "nerfacto_sse_results.json")
+    results_path = os.path.join(args.out_dir, f"nerfacto_{args.tag}_results.json")
     if os.path.exists(results_path):
         with open(results_path) as f:
             for r in json.load(f).get("per_sequence", []):
@@ -271,7 +298,7 @@ def main():
             with lock:
                 rec = records.setdefault(sid, {"id": sid, "scene": int(sid) // 100})
                 rec[METHOD] = res
-                table = summarize(list(records.values()), args.out_dir, METHOD)
+                table = summarize(list(records.values()), args.out_dir, METHOD, args.tag)
             print(f"\n[done] {sid} on gpu{gpu} in {time.time()-t0:.1f}s :: "
                   f"PSNR={res['PSNR']:.2f}\n{table}", flush=True)
         finally:
@@ -283,8 +310,8 @@ def main():
         for f in cf.as_completed(futs):
             f.result()
 
-    print("\n" + summarize(list(records.values()), args.out_dir, METHOD))
-    print(f"\nResults -> {args.out_dir}/nerfacto_sse_results.json , .md")
+    print("\n" + summarize(list(records.values()), args.out_dir, METHOD, args.tag))
+    print(f"\nResults -> {args.out_dir}/nerfacto_{args.tag}_results.json , .md")
 
 
 if __name__ == "__main__":

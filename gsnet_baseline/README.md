@@ -102,6 +102,34 @@ python -m gsnet_baseline.run_nerfacto_sse \
 The Markdown table mirrors `gsnet/runs/sse/sse_results.md`, so the Nerfacto row
 can be dropped straight into the comparison.
 
+## CSE (Cross-Sensor Evaluation)
+
+CSE reuses the exact same machinery. A CSE scene (`gsnet/make_cse_scene.py`)
+is a text-COLMAP workspace per test id: **60 odd cameras = train, 60 even
+cameras = test** (held-out sensor positions), with a `test.txt` listing the even
+images. The driver reads that `test.txt` verbatim, so the split is identical to
+3DGS's CSE.
+
+```bash
+# 0. one-time 1600x900 prep of the CSE scenes (built by gsnet/make_cse_scene.py)
+python -m gsnet_baseline.prep_cse_1600 \
+    --scenes_dir /mnt/zihanw/gaussian-splatting/runs/cse_scenes \
+    --out_root   /mnt/zihanw/carla/cse_scenes_1600
+
+# 1. train + render + score, exactly like SSE but with --seq_suffix "" --tag cse
+python -m gsnet_baseline.run_nerfacto_sse \
+    --io_dir       /mnt/zihanw/carla/cse_scenes_1600 \
+    --seq_suffix   "" --tag cse \
+    --gsnet_repo   /mnt/zihanw/gaussian-splatting \
+    --gsnet_python /home/wzh/miniconda3/envs/gaussian_splatting/bin/python \
+    --out_dir      runs/nerfacto_cse \
+    --gpus 0 1 2 3 4
+# -> runs/nerfacto_cse/nerfacto_cse_results.{json,md}
+```
+
+Then point 3DGS CSE (`gsnet/run_cse.py`) at `--scenes_dir
+/mnt/zihanw/carla/cse_scenes_1600` so both read identical 1600×900 GT.
+
 ## Notes / knobs
 
 * `--downscale_factor 1` keeps the pre-resized 1600×900 images as-is. Always run
