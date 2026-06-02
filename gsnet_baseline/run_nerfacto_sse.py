@@ -301,17 +301,27 @@ def main():
                 table = summarize(list(records.values()), args.out_dir, METHOD, args.tag)
             print(f"\n[done] {sid} on gpu{gpu} in {time.time()-t0:.1f}s :: "
                   f"PSNR={res['PSNR']:.2f}\n{table}", flush=True)
+        except Exception as e:  # one scene failing must not kill the others
+            print(f"\n[FAILED] {sid} on gpu{gpu}: {e}", flush=True)
+            return sid
         finally:
             gpu_q.put(gpu)
+        return None
 
     import concurrent.futures as cf
+    failed = []
     with cf.ThreadPoolExecutor(max_workers=len(args.gpus)) as ex:
         futs = [ex.submit(worker, sid) for sid in args.test_ids]
         for f in cf.as_completed(futs):
-            f.result()
+            bad = f.result()
+            if bad:
+                failed.append(bad)
 
     print("\n" + summarize(list(records.values()), args.out_dir, METHOD, args.tag))
     print(f"\nResults -> {args.out_dir}/nerfacto_{args.tag}_results.json , .md")
+    if failed:
+        print(f"\n[!] {len(failed)} scene(s) FAILED: {sorted(failed)} — "
+              f"re-run the same command to retry just these (others are cached).")
 
 
 if __name__ == "__main__":
