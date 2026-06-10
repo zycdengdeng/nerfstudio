@@ -25,8 +25,6 @@ Scene labels: **s1 = 110, s2 = 210, s3 = 310, s4 = 410, s5 = 510.**
 | PSNR↑       | 24.58 | 25.55 | 25.96 | 22.37 | 24.15 | 24.52 |
 | SSIM↑       | 0.865 | 0.911 | 0.885 | 0.841 | 0.815 | 0.863 |
 | LPIPS↓      | 0.190 | 0.156 | 0.176 | 0.207 | 0.228 | 0.192 |
-| Train(min)  | 31.3 | 25.4 | 29.3 | 26.2 | 29.3 | 28.3 |
-| Total(min)  | 32.2 | 26.2 | 30.2 | 26.9 | 30.1 | 29.1 |
 
 ## CSE — Cross-Sensor Evaluation (60 odd train / 60 even test per scene)
 
@@ -38,8 +36,6 @@ positions absent during reconstruction).
 | PSNR↑       | 19.09 | 20.83 | 20.52 | 20.28 | 20.97 | 20.34 |
 | SSIM↑       | 0.718 | 0.745 | 0.728 | 0.732 | 0.722 | 0.729 |
 | LPIPS↓      | 0.312 | 0.241 | 0.268 | 0.291 | 0.272 | 0.277 |
-| Train(min)  | 43.5 | 44.1 | 60.4 | 59.8 | 47.4 | 51.0 |
-| Total(min)  | 47.0 | 47.5 | 64.8 | 63.4 | 51.2 | 54.8 |
 
 
 > Train times include GPU-contention overhead on a shared 8×A100 node; treat the
