@@ -16,30 +16,31 @@ these are directly comparable to the 3DGS / GS-Net tables:
 Method: `nerfacto` (nerfstudio v1.1.5). nerfacto does **not** use the SfM point
 cloud (`--load-3D-points False`); geometry is learned from poses + images.
 
+Scene labels: **s1 = 110, s2 = 210, s3 = 310, s4 = 410, s5 = 510.**
+
 ## SSE — Same-Sensor Evaluation (48 train / 12 test per scene)
 
-| Seq | PSNR | SSIM | LPIPS | Train(min) | Render(min) | Total(min) |
-|-----|------|------|-------|------------|-------------|------------|
-| 110 | 24.58 | 0.865 | 0.190 | 31.3 | 0.8 | 32.2 |
-| 210 | 25.55 | 0.911 | 0.156 | 25.4 | 0.8 | 26.2 |
-| 310 | 25.96 | 0.885 | 0.176 | 29.3 | 0.9 | 30.2 |
-| 410 | 22.37 | 0.841 | 0.207 | 26.2 | 0.7 | 26.9 |
-| 510 | 24.15 | 0.815 | 0.228 | 29.3 | 0.7 | 30.1 |
-| **Avg** | **24.52** | **0.863** | **0.192** | **28.3** | **0.8** | **29.1** |
+| Metric | s1 | s2 | s3 | s4 | s5 | Average |
+|--------|------|------|------|------|------|---------|
+| PSNR↑       | 24.58 | 25.55 | 25.96 | 22.37 | 24.15 | 24.52 |
+| SSIM↑       | 0.865 | 0.911 | 0.885 | 0.841 | 0.815 | 0.863 |
+| LPIPS↓      | 0.190 | 0.156 | 0.176 | 0.207 | 0.228 | 0.192 |
+| Train(min)  | 31.3 | 25.4 | 29.3 | 26.2 | 29.3 | 28.3 |
+| Total(min)  | 32.2 | 26.2 | 30.2 | 26.9 | 30.1 | 29.1 |
 
 ## CSE — Cross-Sensor Evaluation (60 odd train / 60 even test per scene)
 
 Reconstruct on the 60 odd cameras; evaluate on the 60 even cameras (sensor
 positions absent during reconstruction).
 
-| Seq | PSNR | SSIM | LPIPS | Train(min) | Render(min) | Total(min) |
-|-----|------|------|-------|------------|-------------|------------|
-| 110 | 19.09 | 0.718 | 0.312 | 43.5 | 3.5 | 47.0 |
-| 210 | 20.83 | 0.745 | 0.241 | 44.1 | 3.5 | 47.5 |
-| 310 | 20.52 | 0.728 | 0.268 | 60.4 | 4.4 | 64.8 |
-| 410 | 20.28 | 0.732 | 0.291 | 59.8 | 3.7 | 63.4 |
-| 510 | 20.97 | 0.722 | 0.272 | 47.4 | 3.8 | 51.2 |
-| **Avg** | **20.34** | **0.729** | **0.277** | **51.0** | **3.8** | **54.8** |
+| Metric | s1 | s2 | s3 | s4 | s5 | Average |
+|--------|------|------|------|------|------|---------|
+| PSNR↑       | 19.09 | 20.83 | 20.52 | 20.28 | 20.97 | 20.34 |
+| SSIM↑       | 0.718 | 0.745 | 0.728 | 0.732 | 0.722 | 0.729 |
+| LPIPS↓      | 0.312 | 0.241 | 0.268 | 0.291 | 0.272 | 0.277 |
+| Train(min)  | 43.5 | 44.1 | 60.4 | 59.8 | 47.4 | 51.0 |
+| Total(min)  | 47.0 | 47.5 | 64.8 | 63.4 | 51.2 | 54.8 |
+
 
 > Train times include GPU-contention overhead on a shared 8×A100 node; treat the
 > per-scene wall-clock as indicative rather than a controlled timing benchmark.
